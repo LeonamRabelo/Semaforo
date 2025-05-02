@@ -11,6 +11,7 @@
 #include "ws2812.pio.h"
 #include "hardware/pwm.h"
 
+uint16_t wrap = 0;
 //Trecho para modo BOOTSEL com botão B//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #include "pico/bootrom.h"
 #define botaoB 6
@@ -31,6 +32,7 @@ void gpio_irq_handler(uint gpio, uint32_t events){
 #define I2C_SDA 14    //I2C SDA -> dados
 #define I2C_SCL 15    //I2C SCL -> clock
 #define endereco 0x3C //Endereço do display
+#define LED_AMARELO (gpio_get(LED_VERMELHO) && gpio_get(LED_VERDE)) //Led do semaforoamarelo, combinando o vermelho e verde
 
 volatile int modo_noturno = 0; // 0 = Normal, 1 = Noturno
 uint buzzer_slice;  //Slice para o buzzer
@@ -46,14 +48,8 @@ void inicializar_componentes(){
     gpio_pull_up(BOTAO_A);
 
     //Inicializa o buzzer
-    gpio_set_function(BUZZER_PIN, GPIO_FUNC_PWM);
-    buzzer_slice = pwm_gpio_to_slice_num(BUZZER_PIN);   //Slice para o buzzer
-    float clkdiv = 125.0f; // Clock divisor
-    uint16_t wrap = (uint16_t)((125000000 / (clkdiv * 1000)) - 1);      //Valor do Wrap
-    pwm_set_clkdiv(buzzer_slice, clkdiv);       //Define o clock
-    pwm_set_wrap(buzzer_slice, wrap);           //Define o wrap
-    pwm_set_gpio_level(BUZZER_PIN, wrap * 0.3f); //Define duty
-    pwm_set_enabled(buzzer_slice, false); //Começa desligado
+    gpio_init(BUZZER_PIN);
+    gpio_set_dir(BUZZER_PIN, GPIO_OUT);
 
 
     //Inicializar os LEDs RGB
@@ -88,21 +84,101 @@ void inicializar_componentes(){
 
 //Tarefa: Alternar Modo com botão
 void vTaskModo(){
+    int estado_anterior = 1;
 
+    while(true){
+        int atual = gpio_get(BOTAO_A);
+
+        if (estado_anterior && !atual) {  // Borda de descida
+            modo_noturno = !modo_noturno;
+        }
+
+        estado_anterior = atual;
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
 }
 
 //Tarefa: Controle do semaforo
 void vTaskSemaforo(){
+    while (true){
+        if(modo_noturno){
+            //Modo noturno: amarelo piscando
+            gpio_put(LED_VERDE, 1);
+            gpio_put(LED_VERMELHO, 1);
+            gpio_put(LED_AZUL, 0);
+            vTaskDelay(pdMS_TO_TICKS(500));
+            gpio_put(LED_VERDE, 0);
+            gpio_put(LED_VERMELHO, 0);
+            vTaskDelay(pdMS_TO_TICKS(1500));
+        }else{
+            // Modo normal: ciclo semafórico
+            gpio_put(LED_VERDE, 1);
+            gpio_put(LED_VERMELHO, 0);
+            gpio_put(LED_AZUL, 0);
+            vTaskDelay(pdMS_TO_TICKS(3000)); //verde 3s
+            if(modo_noturno) continue;  //Verifica se o modo noturno foi ativado, assim nao espera o ciclo do semaforo
 
+            gpio_put(LED_VERDE, 1);
+            gpio_put(LED_VERMELHO, 1);
+            gpio_put(LED_AZUL, 0);
+            vTaskDelay(pdMS_TO_TICKS(1500)); //amarelo 1.5s
+            if(modo_noturno) continue;  //Verifica se o modo noturno foi ativado, assim nao espera o ciclo do semaforo
+
+            gpio_put(LED_VERDE, 0);
+            gpio_put(LED_VERMELHO, 1);
+            gpio_put(LED_AZUL, 0);
+            vTaskDelay(pdMS_TO_TICKS(2000)); //vermelho 2s
+            //gpio_put(LED_VERMELHO, 0);
+        }
+    }
 }
 
 //Tarefa: Buzzer
 void vTaskBuzzer(){
-
+    while (true){
+    if(modo_noturno){
+        gpio_put(BUZZER_PIN, 1);
+        vTaskDelay(pdMS_TO_TICKS(200));
+        gpio_put(BUZZER_PIN, 0);
+        vTaskDelay(pdMS_TO_TICKS(1800));
+    } else {
+        // Lógica de buzzer baseada na cor do LED ativo
+        if (gpio_get(LED_VERDE)) {
+            gpio_put(BUZZER_PIN, 1);
+            vTaskDelay(pdMS_TO_TICKS(200));
+            gpio_put(BUZZER_PIN, 0);
+            vTaskDelay(pdMS_TO_TICKS(800));
+        } else if(gpio_get(LED_AMARELO)){
+            for (int i = 0; i < 4; i++) {
+                gpio_put(BUZZER_PIN, 1);
+                vTaskDelay(pdMS_TO_TICKS(100));
+                gpio_put(BUZZER_PIN, 0);
+                vTaskDelay(pdMS_TO_TICKS(100));
+            }
+        }else if(gpio_get(LED_VERMELHO)){
+            gpio_put(BUZZER_PIN, 1);
+            vTaskDelay(pdMS_TO_TICKS(500));
+            gpio_put(BUZZER_PIN, 0);
+            vTaskDelay(pdMS_TO_TICKS(1500));
+        }
+    }
+}
 }
 
+
 int main(){
+        // Para ser utilizado o modo BOOTSEL com botão B
+        gpio_init(botaoB);
+        gpio_set_dir(botaoB, GPIO_IN);
+        gpio_pull_up(botaoB);
+        gpio_set_irq_enabled_with_callback(botaoB, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
+        ////////////////////////////////////////////
+        
     inicializar_componentes();
 
+    xTaskCreate(vTaskModo, "BotaoModo", 256, NULL, 2, NULL);
+    xTaskCreate(vTaskSemaforo, "LEDs", 256, NULL, 1, NULL);
+    xTaskCreate(vTaskBuzzer, "Buzzer", 256, NULL, 1, NULL);
 
+    vTaskStartScheduler();
 }
