@@ -32,6 +32,7 @@ include_directories(${CMAKE_SOURCE_DIR}/lib)
 add_executable(${PROJECT_NAME}  
         Semaforo.c 
         lib/ssd1306.c # Biblioteca para o display OLED
+        lib/matriz_leds.c
         )
 
 # Generate PIO header
