@@ -39,7 +39,7 @@ void set_semaforo_led(uint8_t r, uint8_t g, uint8_t b, int numero){
     for(int i = 0; i < NUM_PIXELS; i++){
         if(cores[3][i]){
             //Moldura → cinza
-            put_pixel(urgb_u32(1, 1, 1));
+            put_pixel(urgb_u32(15, 4, 0));
         }else if(cores[numero][i]){
             //Centro ativo → cor do semáforo
             put_pixel(urgb_u32(r, g, b));
