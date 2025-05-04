@@ -12,7 +12,7 @@ Este projeto implementa um semáforo inteligente utilizando a placa **BitDogLab 
   - Controlado via variáveis globais com tarefas FreeRTOS.
   - LEDs RGB e matriz WS2812 mostram o estado atual.
 
-  - Emitir sinais sonoros com o buzzer para feedback a pessoas cegas.
+  - Emitir sinais sonoros com o buzzer para feedback a pessoas cegas:
     - Modo Normal:
         - Verde: 1 beep curto por um segundo “pode atravessar”; 
         - Amarelo: beep rápido intermitente “atenção”; 
@@ -57,15 +57,14 @@ Este projeto implementa um semáforo inteligente utilizando a placa **BitDogLab 
 ## ▶️ Como Compilar e Rodar
 
 1. Clone o repositório:
-   ```bash
-   git clone https://github.com/LeonamRabelo/Semaforo.git
-   cd semaforo-inteligente
+    - git clone https://github.com/LeonamRabelo/Semaforo.git
+    - cd semaforo-inteligente
 
 2. Configure e Compile:
-    mkdir build
-    cd build
-    cmake ..
-    make
+    - mkdir build
+    - cd build
+    - cmake ..
+    - make
 
 3. Grave o .uf2 na placa BitDogLab via USB.
 
@@ -73,5 +72,7 @@ Este projeto implementa um semáforo inteligente utilizando a placa **BitDogLab 
 
 ## 📚 Autor
 Desenvolvido por **Leonam Sousa Rabelo**
+
 Baseado no RTOS FreeRTOS e exemplos do repositório do professor Wilton Lacerda, no programa EmbarcaTech.
+
 Link para o repositório de exemplo do professor Wilton: https://github.com/wiltonlacerda/EmbarcaTechResU1Ex02
