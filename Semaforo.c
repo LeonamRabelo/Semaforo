@@ -20,63 +20,31 @@ void gpio_irq_handler(uint gpio, uint32_t events){
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define BOTAO_A 5
-#define LED_VERDE 11
-#define LED_AZUL 12
-#define LED_VERMELHO 13
-#define BUZZER_PIN 21
-#define WS2812_PIN 7    //Pino do WS2812
-#define IS_RGBW false   //Maquina PIO para RGBW
-#define I2C_PORT i2c1 //I2C port
-#define I2C_SDA 14    //I2C SDA -> dados
-#define I2C_SCL 15    //I2C SCL -> clock
-#define endereco 0x3C //Endereço do display
+#define BOTAO_A 5               //Pino do botão A
+#define LED_VERDE 11            //Pino do LED Verde
+#define LED_AZUL 12             //Pino do LED Azul
+#define LED_VERMELHO 13         //Pino do LED Vermelho
+#define BUZZER_PIN 21           //Pino do Buzzer
+#define WS2812_PIN 7            //Pino do WS2812
+#define IS_RGBW false           //Usado na configuração da maquina PIO
+#define I2C_PORT i2c1    //I2C port
+#define I2C_SDA 14      //I2C SDA -> dados
+#define I2C_SCL 15      //I2C SCL -> clock
+#define endereco 0x3C   //Endereço do display
 
-volatile bool modo_noturno = false; // 0 = Normal, 1 = Noturno
-volatile int estado_semaforo = 0; // 0 = Verde, 1 = Amarelo, 2 = Vermelho
+volatile bool modo_noturno = false; //0 = Normal, 1 = Noturno / Variavel global para o modo noturno
+volatile int estado_semaforo = 0; //0 = Verde, 1 = Amarelo, 2 = Vermelho /  Variavel global para o semaforo
 
 //Estrutura para o display
 ssd1306_t ssd;
 
-//Funcao para modularizar a inicialização dos componentes
-void inicializar_componentes(){
-    stdio_init_all();
-  
+//Tarefa: Alternar Modo com botão
+void vTaskModo(){
     //Inicializa o botão A
     gpio_init(BOTAO_A);
     gpio_set_dir(BOTAO_A, GPIO_IN);
     gpio_pull_up(BOTAO_A);
 
-    //Inicializar os LEDs RGB
-    gpio_init(LED_VERDE);
-    gpio_init(LED_AZUL);
-    gpio_init(LED_VERMELHO);
-    gpio_set_dir(LED_VERDE, GPIO_OUT);
-    gpio_set_dir(LED_AZUL, GPIO_OUT);
-    gpio_set_dir(LED_VERMELHO, GPIO_OUT);
-
-    //Inicializa o pio
-    PIO pio = pio0;
-    int sm = 0;
-    uint offset = pio_add_program(pio, &ws2812_program);
-    ws2812_program_init(pio, sm, offset, WS2812_PIN, 800000, IS_RGBW);
-  
-    //I2C Initialisation. Using it at 400Khz.
-    i2c_init(I2C_PORT, 400 * 1000);
-    gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);                    //Set the GPIO pin function to I2C
-    gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);                    //Set the GPIO pin function to I2C
-    gpio_pull_up(I2C_SDA);                                        //Pull up the data line
-    gpio_pull_up(I2C_SCL);                                        //Pull up the clock line                                              // Inicializa a estrutura do display
-    ssd1306_init(&ssd, WIDTH, HEIGHT, false, endereco, I2C_PORT); //Inicializa o display
-    ssd1306_config(&ssd);                                         //Configura o display
-    ssd1306_send_data(&ssd);                                      //Envia os dados para o display
-    //Limpa o display. O display inicia com todos os pixels apagados.
-    ssd1306_fill(&ssd, false);
-    ssd1306_send_data(&ssd);
-}
-
-//Tarefa: Alternar Modo com botão
-void vTaskModo(){
     int estado_anterior = true;
 
     while(true){
@@ -84,6 +52,7 @@ void vTaskModo(){
 
         if (estado_anterior && !atual){  //Borda de descida
             modo_noturno = !modo_noturno;
+            estado_semaforo = 0;    //reinicializa o semaforo a partir do verde
         }
 
         estado_anterior = atual;
@@ -93,6 +62,14 @@ void vTaskModo(){
 
 //Tarefa: Controle dos leds
 void vTaskLeds(){
+    //Inicializar os LEDs RGB
+    gpio_init(LED_VERDE);
+    gpio_init(LED_AZUL);
+    gpio_init(LED_VERMELHO);
+    gpio_set_dir(LED_VERDE, GPIO_OUT);
+    gpio_set_dir(LED_AZUL, GPIO_OUT);
+    gpio_set_dir(LED_VERMELHO, GPIO_OUT);
+
     bool piscar = false;
 
     while(true){
@@ -111,36 +88,50 @@ void vTaskLeds(){
             piscar = !piscar; // alterna o estado
             vTaskDelay(pdMS_TO_TICKS(1000)); // piscar a cada 1 segundo
             continue;
+        }else{
+        switch(estado_semaforo){
+            case 0:
+            gpio_put(LED_VERDE, 1);
+            gpio_put(LED_VERMELHO, 0);
+            gpio_put(LED_AZUL, 0);
+            vTaskDelay(pdMS_TO_TICKS(3000));
+            estado_semaforo = 1; //Passa para o amarelo
+            break;
+
+            case 1:
+            gpio_put(LED_VERDE, 1);
+            gpio_put(LED_VERMELHO, 1);
+            gpio_put(LED_AZUL, 0);
+            vTaskDelay(pdMS_TO_TICKS(1500));
+            estado_semaforo = 2; //Passa para o vermelho
+            break;
+
+            case 2:
+            gpio_put(LED_VERDE, 0);
+            gpio_put(LED_VERMELHO, 1);
+            gpio_put(LED_AZUL, 0);
+            vTaskDelay(pdMS_TO_TICKS(3000));
+            estado_semaforo = 0; //Volta para o verde
+            break;
         }
-        estado_semaforo = 0; //Verde
-        gpio_put(LED_VERDE, 1);
-        gpio_put(LED_VERMELHO, 0);
-        gpio_put(LED_AZUL, 0);
-        vTaskDelay(pdMS_TO_TICKS(3000));
-
-        if(modo_noturno) continue;
-        estado_semaforo = 1; //Amarelo
-        gpio_put(LED_VERDE, 1);
-        gpio_put(LED_VERMELHO, 1);
-        gpio_put(LED_AZUL, 0);
-        vTaskDelay(pdMS_TO_TICKS(1500));
-
-        if(modo_noturno) continue;
-        estado_semaforo = 2; // Vermelho
-        gpio_put(LED_VERDE, 0);
-        gpio_put(LED_VERMELHO, 1);
-        gpio_put(LED_AZUL, 0);
-        vTaskDelay(pdMS_TO_TICKS(3000));
+    }
     }
 }
 
 void vTaskMatrizLeds(){
+    //Inicializa o pio
+    PIO pio = pio0;
+    int sm = 0;
+    uint offset = pio_add_program(pio, &ws2812_program);
+    ws2812_program_init(pio, sm, offset, WS2812_PIN, 800000, IS_RGBW);
+
     while(true){
         if(modo_noturno){
+            //vTaskDelay(pdMS_TO_TICKS(200));    //Sincronizar com o LED
             set_semaforo_led(25, 25, 0, 1); //Amarelo piscando
-            vTaskDelay(pdMS_TO_TICKS(500));
+            vTaskDelay(pdMS_TO_TICKS(1000));
             set_semaforo_led(0, 0, 0, -1);  //Apagar
-            vTaskDelay(pdMS_TO_TICKS(1500));
+            vTaskDelay(pdMS_TO_TICKS(1000));
         }else{
             switch(estado_semaforo){
                 case 0:
@@ -163,28 +154,44 @@ void vTaskMatrizLeds(){
 }
 
 void vTaskDisplay(){
-    while(true){
-        ssd1306_fill(&ssd, false);                          // Limpa
-        ssd1306_rect(&ssd, 3, 2, 120, 61, true, false);     // Borda
+    //I2C Initialisation. Using it at 400Khz.
+    i2c_init(I2C_PORT, 400 * 1000);
+    gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);                    //Set the GPIO pin function to I2C
+    gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);                    //Set the GPIO pin function to I2C
+    gpio_pull_up(I2C_SDA);                                        //Pull up the data line
+    gpio_pull_up(I2C_SCL);                                        //Pull up the clock line                                              // Inicializa a estrutura do display
+    ssd1306_init(&ssd, WIDTH, HEIGHT, false, endereco, I2C_PORT); //Inicializa o display
+    ssd1306_config(&ssd);                                         //Configura o display
+    ssd1306_send_data(&ssd);                                      //Envia os dados para o display
+    //Limpa o display. O display inicia com todos os pixels apagados.
+    ssd1306_fill(&ssd, false);
+    ssd1306_send_data(&ssd);
 
+    while(true){
         if(modo_noturno){
-            ssd1306_draw_string(&ssd, "MODO NOTURNO", 15, 25);
+            //Limpa o display. O display inicia com todos os pixels apagados.
+            ssd1306_fill(&ssd, false);
+            ssd1306_draw_string(&ssd, "MODO NOTURNO", 15, 30);
         }else{
-            if(estado_semaforo == 0)
-                ssd1306_draw_string(&ssd, "Sinal Verde", 20, 30);
-            else if(estado_semaforo == 1)
-                ssd1306_draw_string(&ssd, "Sinal Amarelo", 10, 30);
-            else if(estado_semaforo == 2)
-                ssd1306_draw_string(&ssd, "Sinal Vermelho", 5, 30);
-            else
+            //Limpa o display.
+            ssd1306_fill(&ssd, false);
+            if(estado_semaforo == 0){
+                ssd1306_draw_string(&ssd, "Sinal Verde", 20, 20);
+                ssd1306_draw_string(&ssd, "Prossiga!", 30, 35);
+            }else if(estado_semaforo == 1){
+                ssd1306_draw_string(&ssd, "Sinal Amarelo", 10, 20);
+                ssd1306_draw_string(&ssd, "Atencao!", 33, 35);
+            }else if(estado_semaforo == 2){
+                ssd1306_draw_string(&ssd, "Sinal Vermelho", 5, 20);
+                ssd1306_draw_string(&ssd, "Pare!", 42, 35);
+            }else
                 ssd1306_draw_string(&ssd, "Aguardando...", 20, 30);
         }
-
+        ssd1306_rect(&ssd, 3, 2, 120, 61, true, false);     //Borda do display
         ssd1306_send_data(&ssd);
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
-
 
 //Tarefa: Buzzer
 void vTaskBuzzer(){
@@ -208,13 +215,13 @@ void vTaskBuzzer(){
 
     while(true){
         if(modo_noturno){
-            //Bipe suave a cada 2s
+            //Bipe suave a cada 2s (200ms de alto e 1800ms de baixo)
             pwm_set_gpio_level(BUZZER_PIN, duty);
             vTaskDelay(pdMS_TO_TICKS(200));
             pwm_set_gpio_level(BUZZER_PIN, 0);
             vTaskDelay(pdMS_TO_TICKS(1800));
         }else if(gpio_get(LED_VERDE) && !gpio_get(LED_VERMELHO)){
-            //Verde: 1 bipe curto
+            //Verde: 1 bipe curto por um segundo
             pwm_set_gpio_level(BUZZER_PIN, duty);
             vTaskDelay(pdMS_TO_TICKS(200));
             pwm_set_gpio_level(BUZZER_PIN, 0);
@@ -229,22 +236,21 @@ void vTaskBuzzer(){
                 vTaskDelay(pdMS_TO_TICKS(100));
                 if(modo_noturno) continue;
             }
-            vTaskDelay(pdMS_TO_TICKS(800)); //pausa após o ciclo
+            vTaskDelay(pdMS_TO_TICKS(1000)); //pausa após o ciclo
         }else if(!gpio_get(LED_VERDE) && gpio_get(LED_VERMELHO)){
-            // Vermelho: bipe longo
+            //Vermelho: bipe longo (500 ligado e 1500 desligado)
             pwm_set_gpio_level(BUZZER_PIN, duty);
             vTaskDelay(pdMS_TO_TICKS(500));
             pwm_set_gpio_level(BUZZER_PIN, 0);
             vTaskDelay(pdMS_TO_TICKS(1500));
             if(modo_noturno) continue;
         }else{
-            // Nenhuma condição ativa
+            //Nenhuma condição ativa
             pwm_set_gpio_level(BUZZER_PIN, 0);
             vTaskDelay(pdMS_TO_TICKS(200));
         }
     }
 }
-
 
 int main(){
         // Para ser utilizado o modo BOOTSEL com botão B
@@ -254,13 +260,13 @@ int main(){
         gpio_set_irq_enabled_with_callback(botaoB, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
         ////////////////////////////////////////////
         
-    inicializar_componentes();
+    stdio_init_all();
 
-    xTaskCreate(vTaskModo, "BotaoModo", 256, NULL, 2, NULL);
+    xTaskCreate(vTaskModo, "BotaoModo", 256, NULL, 1, NULL);
     xTaskCreate(vTaskLeds, "LEDs", 256, NULL, 2, NULL);
     xTaskCreate(vTaskBuzzer, "Buzzer", 256, NULL, 1, NULL);
-    xTaskCreate(vTaskMatrizLeds, "MatrizLEDs", 512, NULL, 1, NULL);
-    xTaskCreate(vTaskDisplay, "Display", 1024, NULL, 1, NULL);
+    xTaskCreate(vTaskMatrizLeds, "MatrizLEDs", 256, NULL, 2, NULL);
+    xTaskCreate(vTaskDisplay, "Display", 256, NULL, 1, NULL);
 
     vTaskStartScheduler();
 }
