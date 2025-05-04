@@ -13,39 +13,61 @@ static inline uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b){
 }
 
 bool cores[4][NUM_PIXELS] = {
-    //Verde (posição 17 central)
-    {
-        [17] = 1
-    },
-    //Amarelo (posição 12 central)
-    {
-        [12] = 1
-    },
-    //Vermelho (posição 7 central)
-    {
-        [7] = 1
-    },
-    //Número 2, cor vermelha
-    {
+//Verde
+{
     0, 1, 1, 1, 0,      
-    0, 1, 0, 1, 0, 
-    0, 1, 0, 1, 0,   
-    0, 1, 0, 1, 0,  
+    1, 1, 1, 1, 1, 
+    1, 1, 1, 1, 1,   
+    1, 1, 1, 1, 1,  
     0, 1, 1, 1, 0
-    }
+    },
+//Amarelo (Exclamação de atenção)
+{
+    0, 0, 1, 0, 0,      
+    0, 0, 0, 0, 0, 
+    0, 0, 1, 0, 0,   
+    0, 0, 1, 0, 0,  
+    0, 0, 1, 0, 0
+    },
+//Vermelho
+{
+    0, 1, 1, 1, 0,      
+    1, 1, 1, 1, 1, 
+    1, 1, 1, 1, 1,   
+    1, 1, 1, 1, 1,  
+    0, 1, 1, 1, 0
+    },
+//Apagar tudo
+{
+    0, 0, 0, 0, 0,      
+    0, 0, 0, 0, 0,  
+    0, 0, 0, 0, 0,   
+    0, 0, 0, 0, 0,  
+    0, 0, 0, 0, 0
+}
 };
 
+//Função para ligar os LEDs de acordo com o estado do semaforo
 void set_semaforo_led(uint8_t r, uint8_t g, uint8_t b, int numero){
     for(int i = 0; i < NUM_PIXELS; i++){
-        if(cores[3][i]){
-            //Moldura → cinza
-            put_pixel(urgb_u32(1, 1, 1));
-        }else if(cores[numero][i]){
-            //Centro ativo → cor do semáforo
-            put_pixel(urgb_u32(r, g, b));
+        if(cores[numero][i] == 1){
+            if(numero == 1){
+                //Amarelo: toda área ativa é amarela
+                put_pixel(urgb_u32(255, 255, 0));
+            }else{
+                //Verde ou Vermelho: centro na cor desejada, borda branca
+                if(i == 6 || i == 7 || i == 8 ||    //segunda linha (centro)
+                   i == 11 || i == 12 || i == 13 || //terceira linha (centro, exceto 13)
+                   i == 16 || i == 17 || i == 18)   //quarta linha (centro)
+                {
+                    put_pixel(urgb_u32(r, g, b)); // centro
+                }else{
+                    put_pixel(urgb_u32(1, 1, 1)); // borda branca
+                }
+            }
         }else{
-            //Apagar LEDs não usados
-            put_pixel(0);
+            //Fundo escuro
+            put_pixel(urgb_u32(0, 0, 0));
         }
     }
 }

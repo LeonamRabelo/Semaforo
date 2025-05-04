@@ -47,7 +47,7 @@ void vTaskModo(){
             estado_semaforo = 0;    //Reinicializa o semaforo a partir do verde
         }
         estado_anterior = atual;    //Armazena o estado anterior
-        vTaskDelay(pdMS_TO_TICKS(200)); //Pequeno debounce
+        vTaskDelay(pdMS_TO_TICKS(100)); //Pequeno debounce
     }
 }
 
@@ -117,11 +117,8 @@ void vTaskMatrizLeds(){
 
     while(true){
         if(modo_noturno){
-            //vTaskDelay(pdMS_TO_TICKS(200));    //Sincronizar com o LED
             set_semaforo_led(25, 25, 0, 1); //Amarelo piscando
-            vTaskDelay(pdMS_TO_TICKS(1000));
-            set_semaforo_led(0, 0, 0, -1);  //Apagar
-            vTaskDelay(pdMS_TO_TICKS(1000));
+            vTaskDelay(pdMS_TO_TICKS(200));
         }else{
             switch(estado_semaforo){
                 case 0:
@@ -135,7 +132,7 @@ void vTaskMatrizLeds(){
                     //vTaskDelay(pdMS_TO_TICKS(1000));    //Delay para sincronizar com buzzer
                     break;
                 default:
-                    set_semaforo_led(0, 0, 0, -1); //Desliga tudo
+                    set_semaforo_led(0, 0, 0, 3); //Desliga tudo
                     break;
             }
             vTaskDelay(pdMS_TO_TICKS(100));
