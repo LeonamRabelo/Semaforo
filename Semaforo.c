@@ -116,8 +116,8 @@ void vTaskMatrizLeds(){
     ws2812_program_init(pio, sm, offset, WS2812_PIN, 800000, IS_RGBW);
 
     while(true){
-        if(modo_noturno){
-            set_semaforo_led(25, 25, 0, 1); //Amarelo piscando
+        if(modo_noturno){   //Caso modo noturno ativado
+            set_semaforo_led(25, 25, 0, 1); //Amarelo
             vTaskDelay(pdMS_TO_TICKS(200));
         }else{
             switch(estado_semaforo){
@@ -241,11 +241,11 @@ int main(){
     stdio_init_all();
 
     //Cria as tarefas e inicia o scheduler
-    xTaskCreate(vTaskModo, "BotaoModo", 256, NULL, 1, NULL);
-    xTaskCreate(vTaskLeds, "LEDs", 256, NULL, 2, NULL);
-    xTaskCreate(vTaskBuzzer, "Buzzer", 256, NULL, 1, NULL);
-    xTaskCreate(vTaskMatrizLeds, "MatrizLEDs", 256, NULL, 2, NULL);
-    xTaskCreate(vTaskDisplay, "Display", 256, NULL, 1, NULL);
+    xTaskCreate(vTaskModo, "BotaoModo", 256, NULL, tskIDLE_PRIORITY, NULL);
+    xTaskCreate(vTaskLeds, "LEDs", 256, NULL, tskIDLE_PRIORITY, NULL);
+    xTaskCreate(vTaskBuzzer, "Buzzer", 256, NULL, tskIDLE_PRIORITY, NULL);
+    xTaskCreate(vTaskMatrizLeds, "MatrizLEDs", 256, NULL, tskIDLE_PRIORITY, NULL);
+    xTaskCreate(vTaskDisplay, "Display", 256, NULL, tskIDLE_PRIORITY, NULL);
 
     vTaskStartScheduler();
 }
